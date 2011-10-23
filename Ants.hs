@@ -10,18 +10,18 @@ module Ants
   , World
 
     -- Utility functions
-  , passable
-  , occupied
-  , unoccupied
-  , myHills
+  , direction
+  , distance
+  , enemyAnts
   , enemyHills
   , myAnts
-  , enemyAnts
-  , food
-  , distance
-  , direction
-  , visible
+  , myHills
+  , occupied
+  , order2point
+  , passable
   , timeRemaining
+  , unoccupied
+  , visible
 
     -- main function
   , game
@@ -74,7 +74,7 @@ data Tile = AntTile Owner
 -- | Elements of the world
 data MetaTile = MetaTile
   { tile :: Tile
-  , isVisible :: Bool
+  , visibleMT :: Bool
   } deriving (Show)
 
 isAnt, isDead, isAntEnemy, isDeadEnemy :: Tile -> Bool
@@ -97,7 +97,7 @@ isDeadEnemy (Dead (Enemy _)) = True
 isDeadEnemy _ = False
 
 visible :: World -> Point -> Bool
-visible w p = undefined
+visible world p = visibleMT $ world %! p
 
 -- | For debugging
 renderTile :: MetaTile -> String
@@ -115,21 +115,21 @@ renderTile m
   where
     visibleUpper :: MetaTile -> Char -> String
     visibleUpper mt c
-      | isVisible mt = [toUpper c]
+      | visibleMT mt = [toUpper c]
       | otherwise  = [c]
 
 -- | Sets the tile to visible, if the tile is still unknown then it is land.
 visibleMetaTile :: MetaTile -> MetaTile
 visibleMetaTile m
-  | tile m == Unknown = MetaTile {tile = Land, isVisible = True}
-  | otherwise         = MetaTile {tile = tile m, isVisible = True}
+  | tile m == Unknown = MetaTile {tile = Land, visibleMT = True}
+  | otherwise         = MetaTile {tile = tile m, visibleMT = True}
 
 -- | Resets tile to land if it is currently occupied by food or ant
 --   and makes the tile invisible.
 clearMetaTile :: MetaTile -> MetaTile
 clearMetaTile m
-  | fOr (tile m) [isAnt, (==FoodTile), isDead] = MetaTile {tile = Land, isVisible = False}
-  | otherwise = MetaTile {tile = tile m, isVisible = False}
+  | fOr (tile m) [isAnt, (==FoodTile), isDead] = MetaTile {tile = Land, visibleMT = False}
+  | otherwise = MetaTile {tile = tile m, visibleMT = False}
 
 --------------------------------------------------------------------------------
 -- Immutable World -------------------------------------------------------------
@@ -254,8 +254,8 @@ instance Show Direction where
   show West  = "W"
 
 data Order = Order
-  { getAnt :: Ant
-  , getDirection :: Direction
+  { ant :: Ant
+  , directionOrder :: Direction
   } deriving (Show)
 
 move :: Direction -> Point -> Point
@@ -267,12 +267,12 @@ move dir p
 
 passable :: World -> Order -> Bool
 passable w order =
-  let newPoint = move (getDirection order) (pointAnt $ getAnt order)
+  let newPoint = move (directionOrder order) (pointAnt $ ant order)
   in  tile (w %! newPoint) /= Water
 
 occupied :: World -> Order -> Bool
 occupied w order = 
-  let newPoint = move (getDirection order) (pointAnt $ getAnt order)
+  let newPoint = move (directionOrder order) (pointAnt $ ant order)
       t = tile (w %! newPoint)
   in  isAnt t || t == FoodTile || t == Water
 
@@ -281,17 +281,35 @@ unoccupied w order = not $ occupied w order
 
 issueOrder :: Order -> IO ()
 issueOrder order = do
-  let srow = (show . row . pointAnt . getAnt) order
-      scol = (show . col . pointAnt . getAnt) order
-      sdir = (show . getDirection) order
+  let srow = (show . row . pointAnt . ant) order
+      scol = (show . col . pointAnt . ant) order
+      sdir = (show . directionOrder) order
   putStrLn $ "o " ++ srow ++ " " ++ scol ++ " " ++ sdir
 
 toOwner :: Int -> Owner
 toOwner 0 = Me
 toOwner a = Enemy a
 
-direction :: Point -> Point -> [Direction]
-direction p1 p2 = undefined
+direction :: World -> Point -> Point -> (Maybe Direction, Maybe Direction)
+direction world p1 p2 
+  | x1 == x2 = (Nothing, Just ydir)
+  | y1 == y2 = (Just xdir, Nothing)
+  | otherwise = (Just xdir, Just ydir)
+  where rn = rowBound world
+        cn = colBound world
+        x1 = row p1
+        x2 = row p2
+        xdir = if (abs $ x1 - x2) <= (rn `div` 2)
+                then if x1 >= x2 then South else North
+                else if x1 >= x2 then North else South
+        y1 = col p1
+        y2 = col p2
+        ydir = if (abs $ y1 - y2) <= (cn `div` 2)
+                 then if y1 >= y2 then West else East
+                 else if y1 >= y2 then East else West
+
+order2point :: Order -> Point
+order2point o = move (directionOrder o) (pointAnt . ant $ o)
 
 --------------------------------------------------------------------------------
 -- Updating Game ---------------------------------------------------------------
@@ -373,11 +391,11 @@ updateGameState vp gs s
     toPoint = tuplify2.map read.words
     writeTile w p t = runSTArray $ do
       w' <- unsafeThaw w
-      writeArray w' p MetaTile {tile = t, isVisible = True}
+      writeArray w' p MetaTile {tile = t, visibleMT = True}
       return w'
 
 initialWorld :: GameParams -> World
-initialWorld gp = listArray ((0,0), (rows gp - 1, cols gp - 1)) $ repeat MetaTile {tile = Unknown, isVisible = False}
+initialWorld gp = listArray ((0,0), (rows gp - 1, cols gp - 1)) $ repeat MetaTile {tile = Unknown, visibleMT = False}
 
 createParams :: [(String, String)] -> GameParams
 createParams s =
