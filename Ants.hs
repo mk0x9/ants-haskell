@@ -300,8 +300,8 @@ direction world p1 p2
         x1 = row p1
         x2 = row p2
         xdir = if (abs $ x1 - x2) <= (rn `div` 2)
-                then if x1 >= x2 then South else North
-                else if x1 >= x2 then North else South
+                then if x1 >= x2 then North else South
+                else if x1 >= x2 then South else North
         y1 = col p1
         y2 = col p2
         ydir = if (abs $ y1 - y2) <= (cn `div` 2)
