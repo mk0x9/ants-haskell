@@ -10,10 +10,17 @@ module Ants
   , World
 
     -- Utility functions
+  , passable
+  , occupied
+  , unoccupied
+  , myHills
+  , enemyHills
   , myAnts
   , enemyAnts
-  , passable
+  , food
   , distance
+  , direction
+  , visible
   , timeRemaining
 
     -- main function
@@ -67,7 +74,7 @@ data Tile = AntTile Owner
 -- | Elements of the world
 data MetaTile = MetaTile
   { tile :: Tile
-  , visible :: Bool
+  , isVisible :: Bool
   } deriving (Show)
 
 isAnt, isDead, isAntEnemy, isDeadEnemy :: Tile -> Bool
@@ -89,6 +96,9 @@ isHillEnemy _ = False
 isDeadEnemy (Dead (Enemy _)) = True
 isDeadEnemy _ = False
 
+visible :: World -> Point -> Bool
+visible w p = undefined
+
 -- | For debugging
 renderTile :: MetaTile -> String
 renderTile m
@@ -105,21 +115,21 @@ renderTile m
   where
     visibleUpper :: MetaTile -> Char -> String
     visibleUpper mt c
-      | visible mt = [toUpper c]
+      | isVisible mt = [toUpper c]
       | otherwise  = [c]
 
 -- | Sets the tile to visible, if the tile is still unknown then it is land.
 visibleMetaTile :: MetaTile -> MetaTile
 visibleMetaTile m
-  | tile m == Unknown = MetaTile {tile = Land, visible = True}
-  | otherwise         = MetaTile {tile = tile m, visible = True}
+  | tile m == Unknown = MetaTile {tile = Land, isVisible = True}
+  | otherwise         = MetaTile {tile = tile m, isVisible = True}
 
 -- | Resets tile to land if it is currently occupied by food or ant
 --   and makes the tile invisible.
 clearMetaTile :: MetaTile -> MetaTile
 clearMetaTile m
-  | fOr (tile m) [isAnt, (==FoodTile), isDead] = MetaTile {tile = Land, visible = False}
-  | otherwise = MetaTile {tile = tile m, visible = False}
+  | fOr (tile m) [isAnt, (==FoodTile), isDead] = MetaTile {tile = Land, isVisible = False}
+  | otherwise = MetaTile {tile = tile m, isVisible = False}
 
 --------------------------------------------------------------------------------
 -- Immutable World -------------------------------------------------------------
@@ -244,8 +254,8 @@ instance Show Direction where
   show West  = "W"
 
 data Order = Order
-  { ant :: Ant
-  , direction :: Direction
+  { getAnt :: Ant
+  , getDirection :: Direction
   } deriving (Show)
 
 move :: Direction -> Point -> Point
@@ -257,19 +267,31 @@ move dir p
 
 passable :: World -> Order -> Bool
 passable w order =
-  let newPoint = move (direction order) (pointAnt $ ant order)
+  let newPoint = move (getDirection order) (pointAnt $ getAnt order)
   in  tile (w %! newPoint) /= Water
+
+occupied :: World -> Order -> Bool
+occupied w order = 
+  let newPoint = move (getDirection order) (pointAnt $ getAnt order)
+      t = tile (w %! newPoint)
+  in  isAnt t || t == FoodTile || t == Water
+
+unoccupied :: World -> Order -> Bool
+unoccupied w order = not $ occupied w order
 
 issueOrder :: Order -> IO ()
 issueOrder order = do
-  let srow = (show . row . pointAnt . ant) order
-      scol = (show . col . pointAnt . ant) order
-      sdir = (show . direction) order
+  let srow = (show . row . pointAnt . getAnt) order
+      scol = (show . col . pointAnt . getAnt) order
+      sdir = (show . getDirection) order
   putStrLn $ "o " ++ srow ++ " " ++ scol ++ " " ++ sdir
 
 toOwner :: Int -> Owner
 toOwner 0 = Me
 toOwner a = Enemy a
+
+direction :: Point -> Point -> [Direction]
+direction p1 p2 = undefined
 
 --------------------------------------------------------------------------------
 -- Updating Game ---------------------------------------------------------------
@@ -351,11 +373,11 @@ updateGameState vp gs s
     toPoint = tuplify2.map read.words
     writeTile w p t = runSTArray $ do
       w' <- unsafeThaw w
-      writeArray w' p MetaTile {tile = t, visible = True}
+      writeArray w' p MetaTile {tile = t, isVisible = True}
       return w'
 
 initialWorld :: GameParams -> World
-initialWorld gp = listArray ((0,0), (rows gp - 1, cols gp - 1)) $ repeat MetaTile {tile = Unknown, visible = False}
+initialWorld gp = listArray ((0,0), (rows gp - 1, cols gp - 1)) $ repeat MetaTile {tile = Unknown, isVisible = False}
 
 createParams :: [(String, String)] -> GameParams
 createParams s =
