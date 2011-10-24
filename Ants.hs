@@ -291,19 +291,19 @@ toOwner 0 = Me
 toOwner a = Enemy a
 
 direction :: World -> Point -> Point -> (Maybe Direction, Maybe Direction)
-direction world p1 p2 
+direction world source dest
   | x1 == x2 = (Nothing, Just ydir)
   | y1 == y2 = (Just xdir, Nothing)
   | otherwise = (Just xdir, Just ydir)
   where rn = rowBound world
         cn = colBound world
-        x1 = row p1
-        x2 = row p2
+        x1 = row source
+        x2 = row dest
         xdir = if (abs $ x1 - x2) <= (rn `div` 2)
                 then if x1 >= x2 then North else South
                 else if x1 >= x2 then South else North
-        y1 = col p1
-        y2 = col p2
+        y1 = col source
+        y2 = col dest
         ydir = if (abs $ y1 - y2) <= (cn `div` 2)
                  then if y1 >= y2 then West else East
                  else if y1 >= y2 then East else West
